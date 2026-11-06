@@ -1,0 +1,43 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-13
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Xcode
+      run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+
+    - name: Compile XNUProbeLab Binary
+      run: |
+        mkdir -p build/Payload/XNUProbeLab.app
+        xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=15.0 \
+          -fobjc-arc \
+          -framework UIKit -framework Foundation -framework CoreGraphics -framework IOSurface \
+          XNUProbeLab/main.m XNUProbeLab/AppDelegate.m XNUProbeLab/ViewController.m \
+          -o build/Payload/XNUProbeLab.app/XNUProbeLab
+
+    - name: Package App Bundle
+      run: |
+        cp XNUProbeLab/Info.plist build/Payload/XNUProbeLab.app/Info.plist
+        # Fake signature for Sideloading (SideStore/TrollStore will resign it)
+        codesign -s - --force build/Payload/XNUProbeLab.app
+
+    - name: Create IPA Package
+      run: |
+        cd build
+        zip -r ../XNUProbeLab.ipa Payload
+
+    - name: Upload IPA Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: XNUProbeLab-ipa
+        path: XNUProbeLab.ipa
